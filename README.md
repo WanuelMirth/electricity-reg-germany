@@ -16,6 +16,18 @@ use 2019–2023, preserving 2024 for final evaluation.
 
 Review the notebook's audit tables and final section before deciding on cleaning.
 
+## Second milestone: contextual outliers
+
+Run `notebooks/02_outlier_analysis.ipynb` independently, from top to bottom. It
+compares calendar-group distributions, ranks the 20 largest adjacent and weekly
+changes, flags contextual IQR candidates, and plots event windows. It uses only
+2019–2023 and leaves the raw data unchanged. Daily energy is also divided by the
+actual 23/24/25-hour day length to compare average load fairly.
+
+Comparison helpers live in `src/outliers.py`. Weekly comparisons match German
+local calendar time and exclude ambiguous autumn-hour matches. Tests cover clock
+changes, missing intervals, and candidate flags; run `uv run pytest`.
+
 To use local changes in Databricks, commit and push them to your GitHub branch,
 then pull that branch in your Databricks Git folder. A local save alone does not
 update the workspace.
