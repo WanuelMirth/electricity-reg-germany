@@ -16,6 +16,20 @@ use 2019–2023, preserving 2024 for final evaluation.
 
 Review the notebook's audit tables and final section before deciding on cleaning.
 
+## Consumption analysis
+
+Run `notebooks/02_outlier_analysis.ipynb` from top to bottom:
+
+1. Prepare hourly and daily data.
+2. Compare distributions with boxplots.
+3. Inspect trend with rolling and monthly means.
+4. Compare hourly, weekly and annual seasonal profiles.
+5. Separate daily load into trend, weekly/annual components and remainder using MSTL.
+
+Uses 2019–2023; 2024 is excluded. Daily MWh is divided by the actual 23/24/25-hour
+length to compare average load in MW. The 365-day seasonal cycle is approximate.
+This is retrospective analysis, not forecasting. Raw CSVs remain unchanged.
+
 To use local changes in Databricks, commit and push them to your GitHub branch,
 then pull that branch in your Databricks Git folder. A local save alone does not
 update the workspace.
