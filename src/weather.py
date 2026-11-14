@@ -54,9 +54,7 @@ def _fetch_hub_hourly(
             "timestamp_utc": pd.to_datetime(payload["time"], utc=True),
             "temp_c": pd.to_numeric(payload["temperature_2m"], errors="coerce"),
             "apparent_temp_c": pd.to_numeric(payload["apparent_temperature"], errors="coerce"),
-            "solar_radiation_wm2": pd.to_numeric(
-                payload["shortwave_radiation"], errors="coerce"
-            ),
+            "solar_radiation_wm2": pd.to_numeric(payload["shortwave_radiation"], errors="coerce"),
             "wind_speed_kmh": pd.to_numeric(payload["wind_speed_10m"], errors="coerce"),
             "cloud_cover_pct": pd.to_numeric(payload["cloud_cover"], errors="coerce"),
         }

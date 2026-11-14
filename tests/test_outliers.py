@@ -12,11 +12,13 @@ def hourly_frame(start, end):
 def test_week_comparison_preserves_local_hour_across_spring_shift():
     df = hourly_frame("2023-03-19", "2023-03-28")
     # At 10am last Sunday, distinguish the local-hour match from a 168-hour shift.
-    df.loc[df.start_local.eq(pd.Timestamp("2023-03-19 10:00", tz="Europe/Berlin")),
-           "consumption_mwh"] = 123.0
+    df.loc[
+        df.start_local.eq(pd.Timestamp("2023-03-19 10:00", tz="Europe/Berlin")), "consumption_mwh"
+    ] = 123.0
     result = add_comparisons(df, "hourly")
-    row = result.loc[result.start_local.eq(
-        pd.Timestamp("2023-03-26 10:00", tz="Europe/Berlin"))].iloc[0]
+    row = result.loc[
+        result.start_local.eq(pd.Timestamp("2023-03-26 10:00", tz="Europe/Berlin"))
+    ].iloc[0]
     assert row.week_reference_consumption_mwh == 123.0
 
 
@@ -30,11 +32,14 @@ def test_both_sides_of_ambiguous_autumn_hour_are_excluded_from_week_comparison()
 
 
 def test_daily_energy_is_normalized_by_actual_day_length():
-    df = pd.DataFrame({
-        "start_local": pd.to_datetime(["2023-03-26", "2023-10-29"]).tz_localize(
-            "Europe/Berlin"),
-        "consumption_mwh": [230.0, 250.0],
-    })
+    df = pd.DataFrame(
+        {
+            "start_local": pd.to_datetime(["2023-03-26", "2023-10-29"]).tz_localize(
+                "Europe/Berlin"
+            ),
+            "consumption_mwh": [230.0, 250.0],
+        }
+    )
     result = add_comparisons(df, "daily")
     assert result.interval_hours.tolist() == [23.0, 25.0]
     assert result.average_load_mw.tolist() == [10.0, 10.0]
@@ -56,9 +61,14 @@ def test_unsorted_or_duplicate_instants_fail_explicitly():
 
 
 def test_grouped_screen_retains_values_and_marks_small_groups_unassessed():
-    df = pd.DataFrame({"year": [2023] * 9, "month": [1] * 9,
-                       "day_type": ["Weekday"] * 9,
-                       "average_load_mw": [10, 11, 12, 13, 14, 15, 16, 17, 100]})
+    df = pd.DataFrame(
+        {
+            "year": [2023] * 9,
+            "month": [1] * 9,
+            "day_type": ["Weekday"] * 9,
+            "average_load_mw": [10, 11, 12, 13, 14, 15, 16, 17, 100],
+        }
+    )
     original = df.copy(deep=True)
     result = grouped_iqr(df, "daily")
     assert result.iqr_candidate.sum() == 1
