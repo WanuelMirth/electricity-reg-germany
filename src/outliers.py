@@ -78,7 +78,6 @@ def grouped_iqr(frame: pd.DataFrame, resolution: str, minimum_group_size: int = 
     df["iqr_upper_mw"] = (df["group_q3_mw"] + 1.5 * width).where(eligible)
     df["iqr_screened"] = eligible
     df["iqr_candidate"] = eligible & (
-        df["average_load_mw"].lt(df["iqr_lower_mw"])
-        | df["average_load_mw"].gt(df["iqr_upper_mw"])
+        df["average_load_mw"].lt(df["iqr_lower_mw"]) | df["average_load_mw"].gt(df["iqr_upper_mw"])
     )
     return df
