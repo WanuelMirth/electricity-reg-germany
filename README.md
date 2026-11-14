@@ -18,7 +18,7 @@ Review the notebook's audit tables and final section before deciding on cleaning
 
 ## Consumption analysis
 
-Run `notebooks/02_outlier_analysis.ipynb` from top to bottom:
+Run `notebooks/02_electricity_eda.ipynb` from top to bottom (and `notebooks/03_external_data_eda.ipynb` for weather, German holidays, and feature correlations):
 
 1. Prepare hourly and daily data.
 2. Compare distributions with boxplots.
