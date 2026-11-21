@@ -2,9 +2,13 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches: ['**']
   pull_request:
-    branches: [ main ]
+    branches: [main]
+    types: [opened, synchronize, reopened, closed]
+
+permissions:
+  contents: read
 
 jobs:
   test-and-lint:
@@ -27,3 +31,216 @@ jobs:
 
       - name: Run Pytest
         run: uv run pytest
+
+  terraform-check:
+    if: github.event.action != 'closed' || github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: terraform
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.13.5
+
+      - name: Check Terraform
+        run: |
+          terraform fmt -check -recursive
+          terraform init -backend=false -input=false -lockfile=readonly
+          terraform validate
+
+  deploy:
+    needs: [test-and-lint, terraform-check]
+    if: >-
+      vars.DATABRICKS_DEPLOY_ENABLED == 'true' &&
+      (github.event_name == 'push' ||
+       (github.event_name == 'pull_request' &&
+        github.event.action == 'closed' &&
+        github.event.pull_request.merged == true &&
+        github.event.pull_request.base.ref == 'main'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    concurrency:
+      group: databricks-project-deployment
+      cancel-in-progress: false
+    defaults:
+      run:
+        working-directory: terraform
+    env:
+      TF_IN_AUTOMATION: 'true'
+      TF_INPUT: 'false'
+      TF_VAR_databricks_host: ${{ vars.DATABRICKS_HOST }}
+      TF_VAR_databricks_auth_type: pat
+      SYNC_ROOT: ${{ vars.DATABRICKS_SYNC_ROOT || '/Shared/electricity-demand/branches' }}
+      SYNC_BRANCH: ${{ github.event_name == 'push' && github.ref_name || 'main' }}
+      PUSHED_BY: ${{ github.actor }}
+      PERSONAL_GIT_FOLDERS: |
+        {"nishitsuthar": "/Workspace/Users/nishit.suthar@students.uni-mannheim.de/electricity-reg-germany"}
+      GIT_REPOSITORY_URL: https://github.com/${{ github.repository }}.git
+      EXPECTED_COMMIT: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
+      MERGED_PR: ${{ github.event_name == 'pull_request' && 'true' || 'false' }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      ARM_ACCESS_KEY: ${{ secrets.TF_STATE_ACCESS_KEY }}
+      STATE_ACCOUNT: ${{ vars.TF_STATE_STORAGE_ACCOUNT }}
+      STATE_CONTAINER: ${{ vars.TF_STATE_CONTAINER }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merged && github.event.pull_request.merge_commit_sha || github.sha }}
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.13.5
+          terraform_wrapper: false
+      - name: Check connection settings
+        run: |
+          for setting in TF_VAR_databricks_host DATABRICKS_TOKEN; do
+            if [ -z "${!setting}" ]; then
+              echo "::error::Missing setting: $setting"
+              exit 1
+            fi
+          done
+      - name: Sync the branch Git folder
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          host = os.environ['TF_VAR_databricks_host'].rstrip('/')
+          root = os.environ['SYNC_ROOT'].rstrip('/')
+          branch = os.environ['SYNC_BRANCH']
+          url = os.environ['GIT_REPOSITORY_URL']
+          if not root.startswith('/') or '\n' in root or '\r' in root:
+              raise ValueError('DATABRICKS_SYNC_ROOT must be an absolute workspace path.')
+          if branch == 'main':
+              path = f'{root}/main'
+          else:
+              folders = json.loads(os.environ['PERSONAL_GIT_FOLDERS'])
+              actor = os.environ['PUSHED_BY'].lower()
+              path = folders.get(actor)
+              if not path:
+                  with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as output:
+                      output.write(f'No personal Git folder configured for `{actor}`; sync skipped.\n')
+                  print(f'No personal Git folder configured for {actor}; sync skipped.')
+                  raise SystemExit(0)
+              if not path.startswith('/') or '\n' in path or '\r' in path:
+                  raise ValueError('Personal Git folder must be an absolute workspace path.')
+
+          def api(method, endpoint, body=None):
+              request = urllib.request.Request(
+                  host + '/api/2.0/' + endpoint,
+                  data=json.dumps(body).encode() if body is not None else None,
+                  headers={
+                      'Authorization': 'Bearer ' + os.environ['DATABRICKS_TOKEN'],
+                      'Content-Type': 'application/json',
+                  },
+                  method=method,
+              )
+              with urllib.request.urlopen(request, timeout=120) as response:
+                  return json.loads(response.read() or '{}')
+
+          if branch == 'main':
+              api('POST', 'workspace/mkdirs', {'path': root})
+          try:
+              status = api('GET', 'workspace/get-status?' + urllib.parse.urlencode({'path': path}))
+          except urllib.error.HTTPError as error:
+              if error.code != 404:
+                  raise
+              if branch != 'main':
+                  raise RuntimeError('Configured personal Git folder does not exist; check its path.') from error
+              repo = api('POST', 'repos', {'url': url, 'provider': 'gitHub', 'path': path})
+              repo_id = repo['id']
+          else:
+              repo_id = status['object_id']
+              repo = api('GET', f'repos/{repo_id}')
+              if repo.get('url', '').rstrip('/').removesuffix('.git') != url.removesuffix('.git'):
+                  raise RuntimeError('The sync path belongs to a different Git repository.')
+          api('PATCH', f'repos/{repo_id}', {'branch': branch})
+          repo = api('GET', f'repos/{repo_id}')
+          if os.environ['MERGED_PR'] == 'true' and repo['head_commit_id'] != os.environ['EXPECTED_COMMIT']:
+              raise RuntimeError('main has advanced; only the latest merged commit should run.')
+          with open(os.environ['GITHUB_ENV'], 'a') as output:
+              output.write(f'TF_VAR_databricks_project_path={root}/main\n')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as output:
+              output.write(f'Git folder synced: `{path}` (branch `{branch}`).\n')
+          print(f'Synced Git folder: {path}')
+          PY
+      - name: Check shared-state settings for the merged PR
+        if: github.event_name == 'pull_request'
+        run: |
+          for setting in ARM_ACCESS_KEY STATE_ACCOUNT STATE_CONTAINER; do
+            if [ -z "${!setting}" ]; then
+              echo "::error::Missing setting: $setting"
+              exit 1
+            fi
+          done
+      - name: Connect shared Terraform state
+        if: github.event_name == 'pull_request'
+        run: |
+          cp backend.tf.example backend.tf
+          terraform init -input=false -lockfile=readonly \
+            -backend-config="storage_account_name=$STATE_ACCOUNT" \
+            -backend-config="container_name=$STATE_CONTAINER" \
+            -backend-config="key=electricity-demand.tfstate"
+      - name: Require migrated state
+        if: github.event_name == 'pull_request'
+        run: |
+          terraform state list > /tmp/terraform-resources.txt
+          grep -Fxq 'databricks_job.setup_check' /tmp/terraform-resources.txt
+      - name: Plan job deployment after main PR merge
+        if: github.event_name == 'pull_request'
+        run: terraform plan -input=false -lock-timeout=5m -out=deployment.tfplan
+      - name: Apply deployment
+        if: github.event_name == 'pull_request'
+        run: terraform apply -input=false -lock-timeout=5m deployment.tfplan
+      - name: Deployment links
+        if: github.event_name == 'pull_request'
+        run: |
+          echo 'Databricks job updated.' >> "$GITHUB_STEP_SUMMARY"
+          terraform output -raw setup_notebook_url >> "$GITHUB_STEP_SUMMARY"
+          echo >> "$GITHUB_STEP_SUMMARY"
+      - name: Run Databricks job and wait for its result
+        if: github.event_name == 'pull_request'
+        env:
+          MERGE_COMMIT: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          job_id=$(terraform output -raw setup_job_id)
+          host="${TF_VAR_databricks_host%/}"
+          payload=$(jq -n --arg id "$job_id" --arg token "$MERGE_COMMIT" \
+            '{job_id: ($id | tonumber), idempotency_token: $token}')
+          response=$(curl --silent --show-error --fail-with-body \
+            --connect-timeout 15 --max-time 60 \
+            --retry 2 --retry-all-errors \
+            -H "Authorization: Bearer $DATABRICKS_TOKEN" \
+            -H 'Content-Type: application/json' \
+            --data "$payload" "$host/api/2.2/jobs/run-now")
+          run_id=$(jq -er '.run_id' <<< "$response")
+          echo "Databricks run: $host/jobs/$job_id/runs/$run_id" >> "$GITHUB_STEP_SUMMARY"
+          for attempt in {1..90}; do
+            response=$(curl --silent --show-error --fail-with-body \
+              --connect-timeout 15 --max-time 30 \
+              -H "Authorization: Bearer $DATABRICKS_TOKEN" \
+              "$host/api/2.2/jobs/runs/get?run_id=$run_id")
+            state=$(jq -r '.state.life_cycle_state' <<< "$response")
+            result=$(jq -r '.state.result_state // ""' <<< "$response")
+            echo "Databricks run $run_id: $state $result"
+            case "$state" in
+              TERMINATED|SKIPPED|INTERNAL_ERROR)
+                echo "Databricks result: $result" >> "$GITHUB_STEP_SUMMARY"
+                if [ "$result" = 'SUCCESS' ]; then
+                  exit 0
+                fi
+                echo '::error::Databricks job did not succeed; check the run link.'
+                exit 1
+                ;;
+            esac
+            sleep 10
+          done
+          echo '::error::Timed out waiting for Databricks; check the run link.'
+          exit 1

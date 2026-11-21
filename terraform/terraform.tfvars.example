@@ -1,0 +1,4 @@
+databricks_host = "https://adb-REPLACE_WITH_YOUR_WORKSPACE.azuredatabricks.net"
+
+# Shared main Git folder, not a teammate's personal folder.
+databricks_project_path = "/Shared/electricity-demand/branches/main"
