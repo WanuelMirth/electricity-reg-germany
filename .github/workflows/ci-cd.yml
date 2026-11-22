@@ -5,7 +5,7 @@ on:
     branches: ['**']
   pull_request:
     branches: [main]
-    types: [opened, synchronize, reopened]
+    types: [opened, synchronize, reopened, closed]
 
 permissions:
   contents: read
@@ -34,71 +34,32 @@ jobs:
 
   sync:
     needs: test-and-lint
-    if: github.event_name == 'push'
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     timeout-minutes: 5
     concurrency:
-      group: databricks-personal-sync-${{ github.actor }}
+      group: databricks-shared-main-sync
       cancel-in-progress: false
     env:
-      SYNC_ENABLED: ${{ vars.DATABRICKS_DEPLOY_ENABLED || secrets.DATABRICKS_DEPLOY_ENABLED }}
       DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST || secrets.DATABRICKS_HOST }}
       DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
-      SYNC_BRANCH: ${{ github.ref_name }}
-      PUSHED_BY: ${{ github.actor }}
-      GIT_REPOSITORY_URL: https://github.com/${{ github.repository }}.git
-      PERSONAL_GIT_FOLDERS: |
-        {
-          "nishitsuthar": "/Workspace/Users/nishit.suthar@students.uni-mannheim.de/electricity-reg-germany",
-          "wanuelmirth": "/Workspace/Users/manuel.wirth@students.uni-mannheim.de/electricity-reg-germany",
-          "rmtrms": "/Workspace/Users/romeo.tueremis@students.uni-mannheim.de/electricity-reg-germany"
-        }
+      GIT_FOLDER_PATH: ${{ vars.DATABRICKS_GIT_FOLDER_PATH || '/Workspace/Shared/electricity-reg-germany' }}
     steps:
-      - name: Pull pushed branch into personal Databricks Git folder
+      - name: Pull main into the shared Databricks Git folder
+        shell: bash
         run: |
-          python3 - <<'PY'
-          import json
-          import os
-          import urllib.parse
-          import urllib.request
-
-          if os.environ.get('SYNC_ENABLED') != 'true':
-              print('Git sync disabled. Set DATABRICKS_DEPLOY_ENABLED to true.')
-              raise SystemExit(0)
-          actor = os.environ['PUSHED_BY'].lower()
-          path = json.loads(os.environ['PERSONAL_GIT_FOLDERS']).get(actor)
-          if not path:
-              print(f'No personal Git folder configured for {actor}; sync skipped.')
-              raise SystemExit(0)
-          host = os.environ['DATABRICKS_HOST'].rstrip('/')
-          if not host or not os.environ['DATABRICKS_TOKEN']:
-              raise ValueError('DATABRICKS_HOST and DATABRICKS_TOKEN are required.')
-          branch = os.environ['SYNC_BRANCH']
-
-          def api(method, endpoint, body=None):
-              request = urllib.request.Request(
-                  host + '/api/2.0/' + endpoint,
-                  data=json.dumps(body).encode() if body is not None else None,
-                  headers={
-                      'Authorization': 'Bearer ' + os.environ['DATABRICKS_TOKEN'],
-                      'Content-Type': 'application/json',
-                  },
-                  method=method,
-              )
-              with urllib.request.urlopen(request, timeout=60) as response:
-                  return json.loads(response.read() or '{}')
-
-          def canonical_url(url):
-              return url.rstrip('/').removesuffix('.git').replace('git@github.com:', 'https://github.com/').lower()
-
-          status = api('GET', 'workspace/get-status?' + urllib.parse.urlencode({'path': path}))
-          repo_id = status['object_id']
-          repo = api('GET', f'repos/{repo_id}')
-          if canonical_url(repo.get('url', '')) != canonical_url(os.environ['GIT_REPOSITORY_URL']):
-              raise RuntimeError('The configured Git folder points to a different repository.')
-          api('PATCH', f'repos/{repo_id}', {'branch': branch})
-          message = f'Updated {path} to the latest {branch} branch.'
-          print(message)
-          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as summary:
-              summary.write(message + '\n')
-          PY
+          : "${DATABRICKS_HOST:?Set DATABRICKS_HOST}"
+          : "${DATABRICKS_TOKEN:?Set DATABRICKS_TOKEN}"
+          host="${DATABRICKS_HOST%/}"
+          repo_id=$(curl --silent --show-error --fail-with-body --max-time 60 \
+            -H "Authorization: Bearer $DATABRICKS_TOKEN" \
+            --get --data-urlencode "path=$GIT_FOLDER_PATH" \
+            "$host/api/2.0/workspace/get-status" | jq -er '.object_id')
+          curl --silent --show-error --fail-with-body --max-time 120 \
+            -X PATCH -H "Authorization: Bearer $DATABRICKS_TOKEN" \
+            -H 'Content-Type: application/json' --data '{"branch":"main"}' \
+            "$host/api/2.0/repos/$repo_id"
+          echo "Synced main into $GIT_FOLDER_PATH" >> "$GITHUB_STEP_SUMMARY"
