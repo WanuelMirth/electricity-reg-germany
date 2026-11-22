@@ -48,7 +48,11 @@ jobs:
       PUSHED_BY: ${{ github.actor }}
       GIT_REPOSITORY_URL: https://github.com/${{ github.repository }}.git
       PERSONAL_GIT_FOLDERS: |
-        {"nishitsuthar": "/Workspace/Users/nishit.suthar@students.uni-mannheim.de/electricity-reg-germany"}
+        {
+          "nishitsuthar": "/Workspace/Users/nishit.suthar@students.uni-mannheim.de/electricity-reg-germany",
+          "wanuelmirth": "/Workspace/Users/manuel.wirth@students.uni-mannheim.de/electricity-reg-germany",
+          "rmtrms": "/Workspace/Users/romeo.tueremis@students.uni-mannheim.de/electricity-reg-germany"
+        }
     steps:
       - name: Pull pushed branch into personal Databricks Git folder
         run: |
