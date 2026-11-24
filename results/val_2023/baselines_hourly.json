@@ -1,0 +1,70 @@
+{
+  "task": "hourly",
+  "split": "val_2023",
+  "primary_metric": "val_mae",
+  "generated_at_utc": "2026-11-24T15:51:19.586194+00:00",
+  "git_commit": "9732e70",
+  "git_dirty": "true",
+  "models": [
+    {
+      "model_name": "seasonal_naive_week_before",
+      "model_family": "baseline",
+      "run_id": "6c97c5125466464baf8f38a954750340",
+      "registered_model_name": "de-load-hourly",
+      "registered_version": "2",
+      "quality_gate": "passed",
+      "gate_improvement_pct": 40.87878324094156,
+      "params": {
+        "task": "hourly",
+        "lag_days": 7,
+        "feature_col": "lag_168h_mwh"
+      },
+      "metrics": {
+        "val_mae": 2315.2574343607307,
+        "val_rmse": 3741.524403311492,
+        "val_mape": 4.589407610084898,
+        "val_smape": 4.531413842538572,
+        "val_mase": 0.9279939129227212,
+        "val_mae_weekday": 2155.0975416666665,
+        "val_mae_weekend": 1783.2673115079365,
+        "val_mae_holiday": 10969.010416666666
+      },
+      "aliases_after_run": {
+        "champion": "2",
+        "challenger": "1"
+      },
+      "is_champion": true,
+      "is_challenger": false
+    },
+    {
+      "model_name": "naive_day_before",
+      "model_family": "baseline",
+      "run_id": "fab68aa8d3f54af983d4059092200d72",
+      "registered_model_name": "de-load-hourly",
+      "registered_version": "1",
+      "quality_gate": "initial_champion",
+      "gate_improvement_pct": null,
+      "params": {
+        "task": "hourly",
+        "lag_days": 1,
+        "feature_col": "lag_24h_mwh"
+      },
+      "metrics": {
+        "val_mae": 3916.1193921232875,
+        "val_rmse": 5913.8796862099725,
+        "val_mape": 7.645456525575714,
+        "val_smape": 7.717894924323715,
+        "val_mase": 1.5696461673051336,
+        "val_mae_weekday": 3307.4475208333333,
+        "val_mae_weekend": 5321.979464285714,
+        "val_mae_holiday": 4281.479166666667
+      },
+      "aliases_after_run": {
+        "champion": "1",
+        "challenger": null
+      },
+      "is_champion": false,
+      "is_challenger": true
+    }
+  ]
+}
