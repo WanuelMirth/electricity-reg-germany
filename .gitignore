@@ -221,3 +221,6 @@ __marimo__/
 
 # macOS folder metadata
 .DS_Store
+
+# Local MLflow demo results
+.mlflow/
