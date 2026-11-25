@@ -221,3 +221,9 @@ __marimo__/
 
 # macOS folder metadata
 .DS_Store
+
+# MLflow local tracking & artifacts
+mlruns/
+mlartifacts/
+mlflow.db
+mlflow.db-*
