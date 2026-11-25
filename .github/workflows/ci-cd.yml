@@ -1,10 +1,14 @@
-name: CI/CD Pipeline
+name: CI and Databricks Git sync
 
 on:
   push:
-    branches: [ main ]
+    branches: ['**']
   pull_request:
-    branches: [ main ]
+    branches: [main]
+    types: [opened, synchronize, reopened, closed]
+
+permissions:
+  contents: read
 
 jobs:
   test-and-lint:
@@ -17,7 +21,7 @@ jobs:
         uses: astral-sh/setup-uv@v4
 
       - name: Set up Python
-        run: uv python install 3.13
+        run: uv python install 3.11
 
       - name: Install dependencies
         run: uv sync --frozen
@@ -27,3 +31,35 @@ jobs:
 
       - name: Run Pytest
         run: uv run pytest
+
+  sync:
+    needs: test-and-lint
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.action == 'closed' &&
+      github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: databricks-shared-main-sync
+      cancel-in-progress: false
+    env:
+      DATABRICKS_HOST: ${{ vars.DATABRICKS_HOST || secrets.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      GIT_FOLDER_PATH: ${{ vars.DATABRICKS_GIT_FOLDER_PATH || '/Workspace/Shared/electricity-reg-germany' }}
+    steps:
+      - name: Pull main into the shared Databricks Git folder
+        shell: bash
+        run: |
+          : "${DATABRICKS_HOST:?Set DATABRICKS_HOST}"
+          : "${DATABRICKS_TOKEN:?Set DATABRICKS_TOKEN}"
+          host="${DATABRICKS_HOST%/}"
+          repo_id=$(curl --silent --show-error --fail-with-body --max-time 60 \
+            -H "Authorization: Bearer $DATABRICKS_TOKEN" \
+            --get --data-urlencode "path=$GIT_FOLDER_PATH" \
+            "$host/api/2.0/workspace/get-status" | jq -er '.object_id')
+          curl --silent --show-error --fail-with-body --max-time 120 \
+            -X PATCH -H "Authorization: Bearer $DATABRICKS_TOKEN" \
+            -H 'Content-Type: application/json' --data '{"branch":"main"}' \
+            "$host/api/2.0/repos/$repo_id"
+          echo "Synced main into $GIT_FOLDER_PATH" >> "$GITHUB_STEP_SUMMARY"
