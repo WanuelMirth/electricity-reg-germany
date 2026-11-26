@@ -487,7 +487,18 @@ DAILY_AR_EXOG_BASE_COLS = [
     "is_christmas_shutdown",
     *AR_FOURIER_COLS,
 ]
-DAILY_SARIMAX_EXOG_BASE_COLS = list(DAILY_AR_EXOG_BASE_COLS)
+# Collinearity-pruned daily exogenous covariates for SARIMAX MLE stability
+# (omits `holiday_weight` which overlaps `holiday_x_weekday`, and `wind_chill_hdd`).
+DAILY_SARIMAX_EXOG_BASE_COLS = [
+    "hdd",
+    "cdd",
+    "solar_radiation_wm2_mean",
+    "wind_speed_kmh_mean",
+    "holiday_x_weekday",
+    "is_bridge_day",
+    "is_christmas_shutdown",
+    *AR_FOURIER_COLS,
+]
 
 HOURLY_ARX_LAG_COLS = [
     "lag_24h",

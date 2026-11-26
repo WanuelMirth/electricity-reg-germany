@@ -640,6 +640,7 @@ def _predict_sarima_residual_one_step(
             order=order,
             seasonal_order=seasonal_order,
             trend="n",
+            concentrate_scale=True,
             enforce_stationarity=True,
             enforce_invertibility=True,
         )
@@ -724,7 +725,7 @@ class SARIMAXForecaster(BaseForecaster):
             tuple[tuple[int, int, int], tuple[int, int, int, int]], ...
         ]
         | None = None,
-        maxiter: int = 150,
+        maxiter: int = 300,
     ) -> None:
         if task != "daily":
             raise ValueError(
@@ -789,6 +790,7 @@ class SARIMAXForecaster(BaseForecaster):
             order=order,
             seasonal_order=seasonal_order,
             trend="n",
+            concentrate_scale=True,
             enforce_stationarity=True,
             enforce_invertibility=True,
         )

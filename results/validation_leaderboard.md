@@ -15,8 +15,8 @@ Primary metric: `val_mae` (MWh, lower is better). Generated from `results/val_20
 
 | Rank | Model | Family | MAE (MWh) | RMSE (MWh) | MAPE (%) | sMAPE (%) | MASE | Weekday MAE | Weekend MAE | Holiday MAE | Source | Commit |
 | ---: | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- |
-| 1 | `sarimax` | autoregressive | 19,483.1 | 25,980.4 | 1.58 | 1.57 | 0.356 | 19,267.4 | 18,257.5 | 34,716.1 | `autoregressive_daily.json` | `5665f31` |
-| 2 | `spline_arx` | autoregressive | 25,700.6 | 32,079.6 | 2.07 | 2.05 | 0.470 | 26,554.7 | 22,603.2 | 34,450.3 | `autoregressive_daily.json` | `5665f31` |
-| 3 | `ridge_arx` | autoregressive | 25,775.9 | 32,936.3 | 2.09 | 2.06 | 0.471 | 26,730.1 | 22,066.1 | 38,247.8 | `autoregressive_daily.json` | `5665f31` |
+| 1 | `sarimax` | autoregressive | 19,644.5 | 26,113.8 | 1.60 | 1.58 | 0.359 | 19,418.4 | 18,414.8 | 35,197.1 | `autoregressive_daily.json` | `d46112a` |
+| 2 | `spline_arx` | autoregressive | 25,700.6 | 32,079.6 | 2.07 | 2.05 | 0.470 | 26,554.7 | 22,603.2 | 34,450.3 | `autoregressive_daily.json` | `d46112a` |
+| 3 | `ridge_arx` | autoregressive | 25,775.9 | 32,936.3 | 2.09 | 2.06 | 0.471 | 26,730.1 | 22,066.1 | 38,247.8 | `autoregressive_daily.json` | `d46112a` |
 | 4 | `seasonal_naive_week_before` | baseline | 49,920.8 | 81,771.9 | 4.12 | 4.07 | 0.912 | 45,272.9 | 38,529.8 | 261,228.9 | `baselines_daily.json` | `9732e70` |
 | 5 | `naive_day_before` | baseline | 88,204.7 | 125,199.7 | 7.30 | 7.37 | 1.611 | 72,583.7 | 124,308.9 | 97,861.7 | `baselines_daily.json` | `9732e70` |

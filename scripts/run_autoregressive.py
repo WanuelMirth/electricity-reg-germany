@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import time
 from pathlib import Path
@@ -40,6 +41,7 @@ from src.tracking.mlflow_utils import (  # noqa: E402
     get_git_metadata,
     log_and_register_pyfunc_model,
     log_forecast_outputs,
+    log_pyfunc_model,
     save_validation_summary,
     start_forecast_run,
 )
@@ -117,6 +119,22 @@ def _build_models_for_task(
     if selected in {"all", "sarimax"} and task == "daily":
         models.append(SARIMAXForecaster("daily", tune=tune))
     return models
+
+
+def _merge_summary_records(
+    existing_path: Path,
+    new_records: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Upsert `new_records` by `model_name` into an existing summary JSON if present."""
+    if not existing_path.is_file():
+        return list(new_records)
+    existing_payload = json.loads(existing_path.read_text(encoding="utf-8"))
+    by_name: dict[str, dict[str, Any]] = {
+        rec["model_name"]: rec for rec in existing_payload.get("models", [])
+    }
+    for rec in new_records:
+        by_name[rec["model_name"]] = rec
+    return list(by_name.values())
 
 
 def _format_alias_label(version: str | None, final_aliases: dict[str, str | None]) -> str:
@@ -282,6 +300,12 @@ def run_task_autoregressive(
                     auto_promote=auto_promote,
                 )
             else:
+                log_pyfunc_model(
+                    pyfunc_model=model.to_pyfunc_model(),
+                    input_example=backtest.input_example,
+                    sample_output=backtest.sample_output,
+                    pip_requirements=model.pip_requirements(),
+                )
                 mlflow.set_tags({"quality_gate": gate_status})
 
             records.append(
@@ -300,22 +324,26 @@ def run_task_autoregressive(
                 }
             )
 
+    output_path = output_dir / f"autoregressive_{task}.json"
+    records_to_save = (
+        _merge_summary_records(output_path, records) if models_choice != "all" else records
+    )
     final_aliases = (
         get_champion_challenger_aliases(client, registered_model_name)
         if split == "val_2023"
         else {"champion": None, "challenger": None}
     )
-    for rec in records:
-        ver = rec["registered_version"]
+    for rec in records_to_save:
+        ver = rec.get("registered_version")
         rec["is_champion"] = ver is not None and final_aliases.get("champion") == str(ver)
         rec["is_challenger"] = ver is not None and final_aliases.get("challenger") == str(ver)
 
     summary_path = save_validation_summary(
-        records,
+        records_to_save,
         task=task,
         split=split,
         primary_metric=primary_metric,
-        output_path=output_dir / f"autoregressive_{task}.json",
+        output_path=output_path,
         git_metadata=git_meta,
     )
     _print_task_summary(

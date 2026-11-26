@@ -39,6 +39,7 @@ from src.tracking.mlflow_utils import (
     evaluate_quality_gate,
     log_and_register_pyfunc_model,
     log_forecast_outputs,
+    log_pyfunc_model,
     render_leaderboard,
     save_validation_summary,
     start_forecast_run,
@@ -418,6 +419,7 @@ def test_sarimax_stateless_filter_matches_statsmodels_apply(
         order=order,
         seasonal_order=seasonal_order,
         trend="n",
+        concentrate_scale=True,
         enforce_stationarity=True,
         enforce_invertibility=True,
     )
@@ -586,3 +588,63 @@ def test_autoregressive_mlflow_pyfunc_roundtrip_and_databricks_config(
     lb_text = lb_path.read_text(encoding="utf-8")
     assert "`spline_arx`" in lb_text
     assert lb_text.index("`spline_arx`") < lb_text.index("`seasonal_naive_week_before`")
+
+
+def test_log_pyfunc_model_without_registration_and_partial_summary_merge(
+    isolated_mlflow,
+    tmp_path: Path,
+) -> None:
+    """Verify test-split PyFunc logging leaves registry aliases untouched and partial runs merge."""
+    from scripts.run_autoregressive import _merge_summary_records
+
+    client, config = isolated_mlflow
+    df = _make_synthetic_daily("2021-01-01", "2023-01-20", seed=21)
+    train_df = df.loc[df["date_local"] <= pd.Timestamp("2022-12-31")].reset_index(drop=True)
+
+    model = RidgeARXForecaster("daily", tune=False)
+    bt = run_rolling_backtest(
+        model,
+        train_df,
+        df,
+        pd.Timestamp("2023-01-01"),
+        pd.Timestamp("2023-01-08"),
+    )
+
+    with start_forecast_run(
+        "ridge_arx_daily_test_2024",
+        task="daily",
+        split="test_2024",
+        model_family=model.family,
+        model_name=model.name,
+        params=model.get_params(),
+    ):
+        model_info = log_pyfunc_model(
+            pyfunc_model=model.to_pyfunc_model(),
+            input_example=bt.input_example,
+            sample_output=bt.sample_output,
+            pip_requirements=model.pip_requirements(),
+        )
+
+    loaded = mlflow.pyfunc.load_model(model_info.model_uri)
+    np.testing.assert_allclose(loaded.predict(bt.input_example), bt.sample_output, rtol=1e-10)
+    assert client.search_registered_models() == []
+
+    summary_path = tmp_path / "autoregressive_daily.json"
+    save_validation_summary(
+        [{"model_name": "ridge_arx", "metrics": {"val_mae": 25000.0}}],
+        task="daily",
+        split="val_2023",
+        primary_metric="val_mae",
+        output_path=summary_path,
+        git_metadata={"git_commit": "aaa1111", "git_dirty": "false"},
+    )
+    merged = _merge_summary_records(
+        summary_path,
+        [{"model_name": "sarimax", "metrics": {"val_mae": 19000.0}}],
+    )
+    assert {rec["model_name"] for rec in merged} == {"ridge_arx", "sarimax"}
+    updated = _merge_summary_records(
+        summary_path,
+        [{"model_name": "ridge_arx", "metrics": {"val_mae": 24000.0}}],
+    )
+    assert updated == [{"model_name": "ridge_arx", "metrics": {"val_mae": 24000.0}}]

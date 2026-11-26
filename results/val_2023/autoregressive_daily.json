@@ -2,47 +2,47 @@
   "task": "daily",
   "split": "val_2023",
   "primary_metric": "val_mae",
-  "generated_at_utc": "2026-11-26T15:43:43.218292+00:00",
-  "git_commit": "5665f31",
+  "generated_at_utc": "2026-11-26T16:04:57.637252+00:00",
+  "git_commit": "d46112a",
   "git_dirty": "true",
   "models": [
     {
       "model_name": "sarimax",
       "model_family": "autoregressive",
-      "run_id": "b4a0f4f03eb04be7bbf92d32addd219b",
+      "run_id": "d3df84f49c5a464ba196c95526a566c7",
       "registered_model_name": "de-load-daily",
-      "registered_version": "5",
-      "quality_gate": "passed",
-      "gate_improvement_pct": 24.19208165102417,
-      "runtime_sec": 94.198,
+      "registered_version": "6",
+      "quality_gate": "failed",
+      "gate_improvement_pct": -0.8285678551372789,
+      "runtime_sec": 82.191,
       "params": {
         "task": "daily",
         "tune": true,
         "selected_order": "(2, 0, 1)",
         "selected_seasonal_order": "(1, 0, 1, 7)",
         "residual_window": 42,
-        "maxiter": 150,
-        "n_exog_features": 21,
-        "converged": false,
-        "train_aic": -1142.45,
-        "cv_best_mae": 17951.4617
+        "maxiter": 300,
+        "n_exog_features": 19,
+        "converged": true,
+        "train_aic": -1144.67,
+        "cv_best_mae": 17967.7026
       },
       "metrics": {
-        "val_mae": 19483.11115277444,
-        "val_rmse": 25980.41812791577,
-        "val_mape": 1.5821266898063437,
-        "val_smape": 1.5695790355294483,
-        "val_mase": 0.35595501962974596,
-        "val_mae_weekday": 19267.351180366266,
-        "val_mae_weekend": 18257.468440332537,
-        "val_mae_holiday": 34716.09022414786
+        "val_mae": 19644.541948966995,
+        "val_rmse": 26113.824406445394,
+        "val_mape": 1.5958534871094616,
+        "val_smape": 1.5831519261900544,
+        "val_mase": 0.35890434850114566,
+        "val_mae_weekday": 19418.3694887077,
+        "val_mae_weekend": 18414.83591112448,
+        "val_mae_holiday": 35197.05124472272
       },
       "aliases_after_run": {
         "champion": "5",
-        "challenger": "4"
+        "challenger": "6"
       },
-      "is_champion": true,
-      "is_challenger": false
+      "is_champion": false,
+      "is_challenger": true
     },
     {
       "model_name": "spline_arx",

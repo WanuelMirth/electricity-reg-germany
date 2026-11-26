@@ -197,6 +197,33 @@ def log_forecast_outputs(
         mlflow.log_artifact(str(pred_path), artifact_path="predictions")
 
 
+def log_pyfunc_model(
+    *,
+    pyfunc_model: mlflow.pyfunc.PythonModel,
+    input_example: pd.DataFrame,
+    sample_output: np.ndarray,
+    pip_requirements: list[str],
+):
+    """Log a PyFunc model with inferred signature and bundled `src` code to the active run."""
+    signature = infer_signature(input_example, sample_output)
+    code_paths: list[str] | None = None
+    try:
+        src_dir = find_repo_root() / "src"
+        if src_dir.is_dir():
+            code_paths = [str(src_dir)]
+    except FileNotFoundError:
+        code_paths = None
+
+    return mlflow.pyfunc.log_model(
+        name="model",
+        python_model=pyfunc_model,
+        signature=signature,
+        input_example=input_example,
+        pip_requirements=pip_requirements,
+        code_paths=code_paths,
+    )
+
+
 def log_and_register_pyfunc_model(
     client: MlflowClient,
     *,
@@ -208,22 +235,11 @@ def log_and_register_pyfunc_model(
     version_tags: dict[str, str],
 ) -> ModelVersion:
     """Log a PyFunc model with inferred signature, register it, and tag the version."""
-    signature = infer_signature(input_example, sample_output)
-    code_paths: list[str] | None = None
-    try:
-        src_dir = find_repo_root() / "src"
-        if src_dir.is_dir():
-            code_paths = [str(src_dir)]
-    except FileNotFoundError:
-        code_paths = None
-
-    model_info = mlflow.pyfunc.log_model(
-        name="model",
-        python_model=pyfunc_model,
-        signature=signature,
+    model_info = log_pyfunc_model(
+        pyfunc_model=pyfunc_model,
         input_example=input_example,
+        sample_output=sample_output,
         pip_requirements=pip_requirements,
-        code_paths=code_paths,
     )
     mv = mlflow.register_model(model_uri=model_info.model_uri, name=registered_model_name)
     for key, value in version_tags.items():
