@@ -58,7 +58,12 @@ class MLflowConfig:
             )
 
         registry_uri = os.environ.get("MLFLOW_REGISTRY_URI", tracking_uri)
-        experiment_name = os.environ.get("MLFLOW_EXPERIMENT_NAME", "electricity-load-germany")
+        default_experiment = (
+            "/Shared/electricity-load-germany"
+            if tracking_uri.startswith("databricks")
+            else "electricity-load-germany"
+        )
+        experiment_name = os.environ.get("MLFLOW_EXPERIMENT_NAME", default_experiment)
         uc_prefix = os.environ.get("MLFLOW_UC_PREFIX", "")
         return cls(
             tracking_uri=tracking_uri,
@@ -173,8 +178,10 @@ def log_forecast_outputs(
     predictions_df: pd.DataFrame,
     metrics: dict[str, float],
     figures: dict[str, plt.Figure],
+    *,
+    predictions_filename: str = "val_predictions.csv",
 ) -> None:
-    """Log validation metrics, diagnostic plots, and predictions CSV to the active run."""
+    """Log validation/test metrics, diagnostic plots, and predictions CSV to the active run."""
     if metrics:
         mlflow.log_metrics({k: float(v) for k, v in metrics.items()})
 
@@ -185,7 +192,7 @@ def log_forecast_outputs(
             plt.close(fig)
 
     with tempfile.TemporaryDirectory() as tmp_dir:
-        pred_path = Path(tmp_dir) / "val_predictions.csv"
+        pred_path = Path(tmp_dir) / predictions_filename
         predictions_df.to_csv(pred_path, index=False)
         mlflow.log_artifact(str(pred_path), artifact_path="predictions")
 

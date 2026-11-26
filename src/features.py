@@ -451,3 +451,493 @@ def build_tree_features(
     """Build cyclical calendar encodings and leak-free day-ahead lag features for tree models."""
     out = add_cyclical_calendar_features(df, task=task)
     return add_day_ahead_lags(out, task=task, target_col=target_col)
+
+
+AR_HEATING_BASE_C = 15.5
+AR_COOLING_BASE_C = 22.0
+AR_FOURIER_ORDER = 3
+
+AR_DOW_DUMMY_COLS = [f"dow_{i}" for i in range(1, 7)]
+AR_FOURIER_COLS = [
+    f"doy_{fn}_{k}" for k in range(1, AR_FOURIER_ORDER + 1) for fn in ("sin", "cos")
+]
+PREV_DAY_PROFILE_COLS = [f"prev_day_h{h:02d}" for h in range(24)]
+
+HOURLY_AR_EXOG_BASE_COLS = [
+    "hdd",
+    "cdd",
+    "wind_chill_hdd",
+    "solar_radiation_wm2",
+    "wind_speed_kmh",
+    "holiday_weight",
+    "holiday_x_weekday",
+    "is_bridge_day",
+    "is_christmas_shutdown",
+    *AR_FOURIER_COLS,
+]
+DAILY_AR_EXOG_BASE_COLS = [
+    "hdd",
+    "cdd",
+    "wind_chill_hdd",
+    "solar_radiation_wm2_mean",
+    "wind_speed_kmh_mean",
+    "holiday_weight",
+    "holiday_x_weekday",
+    "is_bridge_day",
+    "is_christmas_shutdown",
+    *AR_FOURIER_COLS,
+]
+DAILY_SARIMAX_EXOG_BASE_COLS = list(DAILY_AR_EXOG_BASE_COLS)
+
+HOURLY_ARX_LAG_COLS = [
+    "lag_24h",
+    "lag_48h",
+    "lag_72h",
+    "lag_168h",
+    "lag_336h",
+    "lag_504h",
+    "rolling_mean_24h",
+    "rolling_mean_168h",
+    "prev_day_min",
+    "prev_day_max",
+    "prev_day_last_hour",
+    "temp_lag_24h",
+    "lag_1d_holiday_weight",
+    "lag_7d_holiday_weight",
+    "lag_1d_is_weekend",
+]
+DAILY_ARX_LAG_COLS = [
+    "lag_1d",
+    "lag_2d",
+    "lag_3d",
+    "lag_4d",
+    "lag_5d",
+    "lag_6d",
+    "lag_7d",
+    "lag_14d",
+    "lag_21d",
+    "rolling_mean_7d",
+    "rolling_mean_28d",
+    "rolling_std_7d",
+    "temp_lag_1d",
+    "lag_1d_holiday_weight",
+    "lag_7d_holiday_weight",
+    "lag_1d_is_weekend",
+]
+
+HOURLY_ARX_FEATURE_COLS = [
+    *HOURLY_AR_EXOG_BASE_COLS,
+    *AR_DOW_DUMMY_COLS,
+    *HOURLY_ARX_LAG_COLS,
+]
+DAILY_ARX_FEATURE_COLS = [
+    *DAILY_AR_EXOG_BASE_COLS,
+    *AR_DOW_DUMMY_COLS,
+    *DAILY_ARX_LAG_COLS,
+]
+
+HOURLY_SPLINE_WEATHER_COLS = ["temp_c", "solar_radiation_wm2", "wind_speed_kmh"]
+DAILY_SPLINE_WEATHER_COLS = [
+    "temp_c_mean",
+    "temp_c_min",
+    "temp_c_max",
+    "solar_radiation_wm2_mean",
+    "wind_speed_kmh_mean",
+]
+
+HOURLY_SPLINE_ARX_FEATURE_COLS = [
+    *HOURLY_SPLINE_WEATHER_COLS,
+    "day_of_year",
+    "holiday_weight",
+    "holiday_x_weekday",
+    "is_bridge_day",
+    "is_christmas_shutdown",
+    *AR_DOW_DUMMY_COLS,
+    *HOURLY_ARX_LAG_COLS,
+    *PREV_DAY_PROFILE_COLS,
+]
+DAILY_SPLINE_ARX_FEATURE_COLS = [
+    *DAILY_SPLINE_WEATHER_COLS,
+    "day_of_year",
+    "holiday_weight",
+    "holiday_x_weekday",
+    "is_bridge_day",
+    "is_christmas_shutdown",
+    *AR_DOW_DUMMY_COLS,
+    *DAILY_ARX_LAG_COLS,
+]
+
+
+def add_ar_exogenous_features(df: pd.DataFrame, *, task: _TaskType) -> pd.DataFrame:
+    """Add degree-day weather basis, annual Fourier harmonics, and calendar dummies."""
+    _validate_task(task)
+    out = df.copy()
+    norm_dates = _normalize_date_series(out["date_local"])
+
+    temp_col = "temp_c" if task == "hourly" else "temp_c_mean"
+    wind_col = "wind_speed_kmh" if task == "hourly" else "wind_speed_kmh_mean"
+    temp = out[temp_col].to_numpy(dtype=float)
+    wind = out[wind_col].to_numpy(dtype=float)
+
+    hdd = np.maximum(0.0, AR_HEATING_BASE_C - temp)
+    cdd = np.maximum(0.0, temp - AR_COOLING_BASE_C)
+    out["hdd"] = hdd
+    out["cdd"] = cdd
+    out["wind_chill_hdd"] = hdd * wind
+
+    if task == "daily":
+        if "temp_c_min" not in out.columns:
+            out["temp_c_min"] = temp
+        if "temp_c_max" not in out.columns:
+            out["temp_c_max"] = temp
+
+    dow_series = out["day_of_week"] if "day_of_week" in out.columns else norm_dates.dt.day_of_week
+    doy_series = out["day_of_year"] if "day_of_year" in out.columns else norm_dates.dt.day_of_year
+    dow = dow_series.to_numpy(dtype=int)
+    doy = doy_series.to_numpy(dtype=float)
+    out["day_of_year"] = doy
+
+    for day_idx in range(1, 7):
+        out[f"dow_{day_idx}"] = (dow == day_idx).astype(float)
+
+    is_weekend = (
+        out["is_weekend"].to_numpy(dtype=float)
+        if "is_weekend" in out.columns
+        else (dow >= 5).astype(float)
+    )
+    holiday_w = out["holiday_weight"].to_numpy(dtype=float)
+    out["holiday_x_weekday"] = holiday_w * (1.0 - is_weekend)
+
+    for k in range(1, AR_FOURIER_ORDER + 1):
+        angle = 2.0 * np.pi * k * doy / 365.25
+        out[f"doy_sin_{k}"] = np.sin(angle)
+        out[f"doy_cos_{k}"] = np.cos(angle)
+
+    return out
+
+
+def _build_day_hour_matrix(
+    df: pd.DataFrame,
+    dates: pd.Series,
+    value_col: str,
+) -> pd.DataFrame:
+    """Build a DST-safe `(date_local x hour 0..23)` matrix with intra-day interpolation."""
+    hours = df["hour"].astype(int)
+    grouped = (
+        df.assign(_date=dates, _hour=hours)
+        .groupby(["_date", "_hour"], sort=False)[value_col]
+        .mean()
+    )
+    return (
+        grouped.unstack("_hour")
+        .reindex(columns=range(24))
+        .interpolate(axis=1, limit_direction="both")
+    )
+
+
+def add_arx_lags(
+    df: pd.DataFrame,
+    *,
+    task: _TaskType,
+    target_col: str = "grid_load_mwh",
+    include_prev_day_profile: bool = False,
+) -> pd.DataFrame:
+    """Add vectorized, DST-safe multi-week autoregressive lags strictly using `date_local <= d-1`.
+
+    Includes lag-holiday/weekend indicators so linear and spline ARX models can offset
+    holiday dips embedded in lagged load without propagating errors forward.
+    """
+    _validate_task(task)
+    out = df.copy()
+    if out.empty:
+        cols = list(HOURLY_ARX_LAG_COLS if task == "hourly" else DAILY_ARX_LAG_COLS)
+        if task == "hourly" and include_prev_day_profile:
+            cols.extend(PREV_DAY_PROFILE_COLS)
+        for col in cols:
+            out[col] = np.nan
+        return out
+
+    out_dates = _normalize_date_series(out["date_local"])
+    full_dates = pd.date_range(out_dates.min(), out_dates.max(), freq="D").astype(out_dates.dtype)
+
+    daily_holiday = (
+        out.assign(_date=out_dates)
+        .groupby("_date", sort=True)["holiday_weight"]
+        .first()
+        .reindex(full_dates)
+    )
+    daily_weekend = (
+        out.assign(_date=out_dates)
+        .groupby("_date", sort=True)["is_weekend"]
+        .first()
+        .reindex(full_dates)
+    )
+    out["lag_1d_holiday_weight"] = out_dates.map(daily_holiday.shift(1)).to_numpy(dtype=float)
+    out["lag_7d_holiday_weight"] = out_dates.map(daily_holiday.shift(7)).to_numpy(dtype=float)
+    out["lag_1d_is_weekend"] = out_dates.map(daily_weekend.shift(1)).to_numpy(dtype=float)
+
+    if task == "hourly":
+        out_hours = out["hour"].astype(int)
+        load_matrix = _build_day_hour_matrix(out, out_dates, target_col)
+        filled_load = load_matrix.stack()
+
+        for lag_days, col_name in (
+            (1, "lag_24h"),
+            (2, "lag_48h"),
+            (3, "lag_72h"),
+            (7, "lag_168h"),
+            (14, "lag_336h"),
+            (21, "lag_504h"),
+        ):
+            lookup_dates = (out_dates - pd.Timedelta(days=lag_days)).astype(out_dates.dtype)
+            idx = pd.MultiIndex.from_arrays([lookup_dates, out_hours])
+            out[col_name] = filled_load.reindex(idx).to_numpy(dtype=float)
+
+        temp_matrix = _build_day_hour_matrix(out, out_dates, "temp_c")
+        filled_temp = temp_matrix.stack()
+        prev_dates = (out_dates - pd.Timedelta(days=1)).astype(out_dates.dtype)
+        temp_idx = pd.MultiIndex.from_arrays([prev_dates, out_hours])
+        out["temp_lag_24h"] = filled_temp.reindex(temp_idx).to_numpy(dtype=float)
+
+        daily_agg = (
+            out.assign(_date=out_dates)
+            .groupby("_date", sort=True)[target_col]
+            .agg(sum="sum", count="count", min="min", max="max")
+            .reindex(full_dates)
+        )
+        prev_sum = daily_agg["sum"].shift(1)
+        prev_cnt = daily_agg["count"].shift(1)
+        out["rolling_mean_24h"] = out_dates.map(prev_sum / prev_cnt).to_numpy(dtype=float)
+        out["rolling_mean_168h"] = out_dates.map(
+            prev_sum.rolling(7, min_periods=7).sum() / prev_cnt.rolling(7, min_periods=7).sum()
+        ).to_numpy(dtype=float)
+        out["prev_day_min"] = out_dates.map(daily_agg["min"].shift(1)).to_numpy(dtype=float)
+        out["prev_day_max"] = out_dates.map(daily_agg["max"].shift(1)).to_numpy(dtype=float)
+
+        last_hour_series = load_matrix[23].reindex(full_dates)
+        out["prev_day_last_hour"] = out_dates.map(last_hour_series.shift(1)).to_numpy(dtype=float)
+
+        if include_prev_day_profile:
+            profile_aligned = load_matrix.reindex(prev_dates)
+            for h in range(24):
+                out[f"prev_day_h{h:02d}"] = profile_aligned[h].to_numpy(dtype=float)
+
+        return out
+
+    daily_series = (
+        out.assign(_date=out_dates)
+        .groupby("_date", sort=True)[target_col]
+        .last()
+        .reindex(full_dates)
+    )
+    daily_temp = (
+        out.assign(_date=out_dates)
+        .groupby("_date", sort=True)["temp_c_mean"]
+        .last()
+        .reindex(full_dates)
+    )
+    for lag_days, col_name in (
+        (1, "lag_1d"),
+        (2, "lag_2d"),
+        (3, "lag_3d"),
+        (4, "lag_4d"),
+        (5, "lag_5d"),
+        (6, "lag_6d"),
+        (7, "lag_7d"),
+        (14, "lag_14d"),
+        (21, "lag_21d"),
+    ):
+        out[col_name] = out_dates.map(daily_series.shift(lag_days)).to_numpy(dtype=float)
+
+    shifted = daily_series.shift(1)
+    out["rolling_mean_7d"] = out_dates.map(
+        shifted.rolling(7, min_periods=7).mean()
+    ).to_numpy(dtype=float)
+    out["rolling_mean_28d"] = out_dates.map(
+        shifted.rolling(28, min_periods=28).mean()
+    ).to_numpy(dtype=float)
+    out["rolling_std_7d"] = out_dates.map(
+        shifted.rolling(7, min_periods=7).std(ddof=0)
+    ).to_numpy(dtype=float)
+    out["temp_lag_1d"] = out_dates.map(daily_temp.shift(1)).to_numpy(dtype=float)
+    return out
+
+
+def compute_single_day_arx_features(
+    history_df: pd.DataFrame,
+    future_df: pd.DataFrame,
+    *,
+    task: _TaskType,
+    target_col: str = "grid_load_mwh",
+    include_prev_day_profile: bool = False,
+) -> pd.DataFrame:
+    """Compute leak-free day-ahead ARX exogenous + lag features for one origin day."""
+    _validate_task(task)
+    if future_df.empty:
+        raise ValueError("future_df cannot be empty.")
+
+    origin_date = pd.Timestamp(future_df["date_local"].iloc[0]).normalize()
+    hist_dates = _normalize_date_series(history_df["date_local"])
+    if not history_df.empty and (hist_dates >= origin_date).any():
+        raise ValueError(
+            f"Leakage detected: history_df contains rows on/after {origin_date.date()}."
+        )
+
+    out = add_ar_exogenous_features(future_df, task=task)
+    n_rows = len(future_df)
+
+    prev_1d_date = origin_date - pd.Timedelta(days=1)
+    prev_7d_date = origin_date - pd.Timedelta(days=7)
+    prev_1d_rows = history_df.loc[hist_dates == prev_1d_date]
+    prev_7d_rows = history_df.loc[hist_dates == prev_7d_date]
+
+    lag_1d_hw = float(prev_1d_rows["holiday_weight"].iloc[0]) if not prev_1d_rows.empty else np.nan
+    lag_7d_hw = float(prev_7d_rows["holiday_weight"].iloc[0]) if not prev_7d_rows.empty else np.nan
+    lag_1d_wknd = float(prev_1d_rows["is_weekend"].iloc[0]) if not prev_1d_rows.empty else np.nan
+
+    out["lag_1d_holiday_weight"] = np.full(n_rows, lag_1d_hw, dtype=float)
+    out["lag_7d_holiday_weight"] = np.full(n_rows, lag_7d_hw, dtype=float)
+    out["lag_1d_is_weekend"] = np.full(n_rows, lag_1d_wknd, dtype=float)
+
+    if task == "hourly":
+        for lag_days, col_name in (
+            (1, "lag_24h"),
+            (2, "lag_48h"),
+            (3, "lag_72h"),
+            (7, "lag_168h"),
+            (14, "lag_336h"),
+            (21, "lag_504h"),
+        ):
+            out[col_name] = _safe_lookup_day_lag(
+                history_df,
+                future_df,
+                task="hourly",
+                lag_days=lag_days,
+                target_col=target_col,
+            )
+
+        out["temp_lag_24h"] = _safe_lookup_day_lag(
+            history_df,
+            future_df,
+            task="hourly",
+            lag_days=1,
+            target_col="temp_c",
+        )
+
+        rm_24h = float(prev_1d_rows[target_col].mean()) if not prev_1d_rows.empty else np.nan
+        prev_min = float(prev_1d_rows[target_col].min()) if not prev_1d_rows.empty else np.nan
+        prev_max = float(prev_1d_rows[target_col].max()) if not prev_1d_rows.empty else np.nan
+
+        win_mask = (hist_dates >= prev_7d_date) & (hist_dates <= prev_1d_date)
+        win_rows = history_df.loc[win_mask]
+        rm_168h = (
+            float(win_rows[target_col].mean())
+            if hist_dates.loc[win_rows.index].nunique() == 7
+            else np.nan
+        )
+
+        if not prev_1d_rows.empty:
+            hour_means = {
+                int(hour): float(val)
+                for hour, val in prev_1d_rows.groupby("hour")[target_col].mean().items()
+            }
+            prev_profile = (
+                pd.Series(hour_means, dtype=float)
+                .reindex(range(24))
+                .interpolate(limit_direction="both")
+            )
+            prev_last_hour = float(prev_profile.iloc[23])
+        else:
+            prev_profile = pd.Series(np.nan, index=range(24), dtype=float)
+            prev_last_hour = np.nan
+
+        out["rolling_mean_24h"] = np.full(n_rows, rm_24h, dtype=float)
+        out["rolling_mean_168h"] = np.full(n_rows, rm_168h, dtype=float)
+        out["prev_day_min"] = np.full(n_rows, prev_min, dtype=float)
+        out["prev_day_max"] = np.full(n_rows, prev_max, dtype=float)
+        out["prev_day_last_hour"] = np.full(n_rows, prev_last_hour, dtype=float)
+
+        if include_prev_day_profile:
+            for h in range(24):
+                out[f"prev_day_h{h:02d}"] = np.full(
+                    n_rows, float(prev_profile.iloc[h]), dtype=float
+                )
+
+        return out
+
+    for lag_days, col_name in (
+        (1, "lag_1d"),
+        (2, "lag_2d"),
+        (3, "lag_3d"),
+        (4, "lag_4d"),
+        (5, "lag_5d"),
+        (6, "lag_6d"),
+        (7, "lag_7d"),
+        (14, "lag_14d"),
+        (21, "lag_21d"),
+    ):
+        out[col_name] = _safe_lookup_day_lag(
+            history_df,
+            future_df,
+            task="daily",
+            lag_days=lag_days,
+            target_col=target_col,
+        )
+
+    out["temp_lag_1d"] = _safe_lookup_day_lag(
+        history_df,
+        future_df,
+        task="daily",
+        lag_days=1,
+        target_col="temp_c_mean",
+    )
+
+    win_7_mask = (hist_dates >= prev_7d_date) & (hist_dates <= prev_1d_date)
+    win_7_rows = history_df.loc[win_7_mask]
+    if hist_dates.loc[win_7_rows.index].nunique() == 7:
+        win_7_vals = (
+            win_7_rows.assign(_date=hist_dates.loc[win_7_rows.index])
+            .groupby("_date", sort=True)[target_col]
+            .last()
+            .to_numpy(dtype=float)
+        )
+        rm_7d = float(np.mean(win_7_vals))
+        rstd_7d = float(np.std(win_7_vals, ddof=0))
+    else:
+        rm_7d = np.nan
+        rstd_7d = np.nan
+
+    win_28_mask = (hist_dates >= origin_date - pd.Timedelta(days=28)) & (hist_dates <= prev_1d_date)
+    win_28_rows = history_df.loc[win_28_mask]
+    if hist_dates.loc[win_28_rows.index].nunique() == 28:
+        win_28_vals = (
+            win_28_rows.assign(_date=hist_dates.loc[win_28_rows.index])
+            .groupby("_date", sort=True)[target_col]
+            .last()
+            .to_numpy(dtype=float)
+        )
+        rm_28d = float(np.mean(win_28_vals))
+    else:
+        rm_28d = np.nan
+
+    out["rolling_mean_7d"] = np.full(n_rows, rm_7d, dtype=float)
+    out["rolling_mean_28d"] = np.full(n_rows, rm_28d, dtype=float)
+    out["rolling_std_7d"] = np.full(n_rows, rstd_7d, dtype=float)
+    return out
+
+
+def build_arx_features(
+    df: pd.DataFrame,
+    *,
+    task: _TaskType,
+    target_col: str = "grid_load_mwh",
+    include_prev_day_profile: bool = False,
+) -> pd.DataFrame:
+    """Build exogenous features and leak-free day-ahead lags for autoregressive models."""
+    out = add_ar_exogenous_features(df, task=task)
+    return add_arx_lags(
+        out,
+        task=task,
+        target_col=target_col,
+        include_prev_day_profile=include_prev_day_profile,
+    )
