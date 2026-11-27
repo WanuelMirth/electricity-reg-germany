@@ -15,6 +15,7 @@ from src.models.baselines import (
     LagBaselinePyFunc,
     SeasonalNaiveBaseline,
 )
+from src.models.trees import TreeForecaster
 
 __all__ = [
     "BacktestResult",
@@ -27,6 +28,7 @@ __all__ = [
     "SARIMAXForecaster",
     "SARIMAXPyFunc",
     "SeasonalNaiveBaseline",
+    "TreeForecaster",
     "SplineARXForecaster",
     "SplineARXPyFunc",
     "run_rolling_backtest",
