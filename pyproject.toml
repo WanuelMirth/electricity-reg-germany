@@ -22,6 +22,12 @@ dependencies = [
     "xgboost>=3.4.1",
 ]
 
+[project.optional-dependencies]
+icl = [
+    "h2ofm>=0.43.1",
+    "timestral @ git+https://github.com/mistralai/timestral.git",
+]
+
 [dependency-groups]
 dev = [
     "ipykernel>=7.4.0",

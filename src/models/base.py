@@ -67,6 +67,14 @@ class BaseForecaster(ABC):
         """Return minimal pip dependencies required by the serialized pyfunc model."""
         return ["mlflow", "numpy", "pandas"]
 
+    def make_input_example(
+        self,
+        features_df: pd.DataFrame,
+        sample_output: np.ndarray,
+    ) -> tuple[pd.DataFrame, np.ndarray] | None:
+        """Optionally return a compact `(input_example, sample_output)` for MLflow logging."""
+        return None
+
 
 def run_rolling_backtest(
     model: BaseForecaster,
@@ -83,6 +91,7 @@ def run_rolling_backtest(
     collected_example_rows = 0
     feature_examples: list[pd.DataFrame] = []
     pred_examples: list[np.ndarray] = []
+    custom_example: tuple[pd.DataFrame, np.ndarray] | None = None
     prediction_frames: list[pd.DataFrame] = []
 
     keep_meta_cols = [
@@ -118,18 +127,25 @@ def run_rolling_backtest(
         day_out["y_pred"] = y_pred
         prediction_frames.append(day_out)
 
-        if collected_example_rows < example_target_rows:
-            feature_examples.append(features_df)
-            pred_examples.append(y_pred)
-            collected_example_rows += len(features_df)
+        if custom_example is None:
+            candidate = model.make_input_example(features_df, y_pred)
+            if candidate is not None:
+                custom_example = candidate
+            elif collected_example_rows < example_target_rows:
+                feature_examples.append(features_df)
+                pred_examples.append(y_pred)
+                collected_example_rows += len(features_df)
 
     predictions_df = pd.concat(prediction_frames, ignore_index=True)
-    input_example = (
-        pd.concat(feature_examples, ignore_index=True)
-        .iloc[:example_target_rows]
-        .reset_index(drop=True)
-    )
-    sample_output = np.concatenate(pred_examples)[:example_target_rows]
+    if custom_example is not None:
+        input_example, sample_output = custom_example
+    else:
+        input_example = (
+            pd.concat(feature_examples, ignore_index=True)
+            .iloc[:example_target_rows]
+            .reset_index(drop=True)
+        )
+        sample_output = np.concatenate(pred_examples)[:example_target_rows]
 
     return BacktestResult(
         predictions_df=predictions_df,
