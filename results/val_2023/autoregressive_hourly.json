@@ -1,0 +1,82 @@
+{
+  "task": "hourly",
+  "split": "val_2023",
+  "primary_metric": "val_mae",
+  "generated_at_utc": "2026-11-26T15:41:58.689297+00:00",
+  "git_commit": "5665f31",
+  "git_dirty": "true",
+  "models": [
+    {
+      "model_name": "spline_arx",
+      "model_family": "autoregressive",
+      "run_id": "3f0fce7145cf4bbd95ae2cac7634f034",
+      "registered_model_name": "de-load-hourly",
+      "registered_version": "4",
+      "quality_gate": "passed",
+      "gate_improvement_pct": 1.5154363620174864,
+      "runtime_sec": 38.731,
+      "params": {
+        "task": "hourly",
+        "tune": true,
+        "selected_alpha": 50.0,
+        "selected_n_knots": 5,
+        "selected_include_trend": false,
+        "uses_prev_day_24h_profile": true,
+        "n_input_features": 53,
+        "stratified_by_hour": true,
+        "cv_best_mae": 993.7025
+      },
+      "metrics": {
+        "val_mae": 1039.588692426834,
+        "val_rmse": 1413.8266545014583,
+        "val_mape": 1.990701001969317,
+        "val_smape": 1.9708391793867852,
+        "val_mase": 0.41668453978283704,
+        "val_mae_weekday": 1034.534897560482,
+        "val_mae_weekend": 1011.1945103549474,
+        "val_mae_holiday": 1465.3140429563311
+      },
+      "aliases_after_run": {
+        "champion": "4",
+        "challenger": "3"
+      },
+      "is_champion": true,
+      "is_challenger": false
+    },
+    {
+      "model_name": "ridge_arx",
+      "model_family": "autoregressive",
+      "run_id": "1673bd535a984d18acd38fa858ad4358",
+      "registered_model_name": "de-load-hourly",
+      "registered_version": "3",
+      "quality_gate": "passed",
+      "gate_improvement_pct": 54.40742778696887,
+      "runtime_sec": 14.677,
+      "params": {
+        "task": "hourly",
+        "tune": true,
+        "selected_alpha": 10.0,
+        "selected_include_trend": false,
+        "n_features": 36,
+        "stratified_by_hour": true,
+        "cv_best_mae": 1002.6597
+      },
+      "metrics": {
+        "val_mae": 1055.585417678488,
+        "val_rmse": 1440.910106033576,
+        "val_mape": 2.0127937799425455,
+        "val_smape": 1.9912485367459927,
+        "val_mase": 0.42309629488182493,
+        "val_mae_weekday": 1067.6826924503787,
+        "val_mae_weekend": 981.4975902111279,
+        "val_mae_holiday": 1505.2745705661282
+      },
+      "aliases_after_run": {
+        "champion": "3",
+        "challenger": "2"
+      },
+      "is_champion": false,
+      "is_challenger": true
+    }
+  ]
+}

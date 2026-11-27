@@ -1,0 +1,120 @@
+{
+  "task": "daily",
+  "split": "val_2023",
+  "primary_metric": "val_mae",
+  "generated_at_utc": "2026-11-26T16:04:57.637252+00:00",
+  "git_commit": "d46112a",
+  "git_dirty": "true",
+  "models": [
+    {
+      "model_name": "sarimax",
+      "model_family": "autoregressive",
+      "run_id": "d3df84f49c5a464ba196c95526a566c7",
+      "registered_model_name": "de-load-daily",
+      "registered_version": "6",
+      "quality_gate": "failed",
+      "gate_improvement_pct": -0.8285678551372789,
+      "runtime_sec": 82.191,
+      "params": {
+        "task": "daily",
+        "tune": true,
+        "selected_order": "(2, 0, 1)",
+        "selected_seasonal_order": "(1, 0, 1, 7)",
+        "residual_window": 42,
+        "maxiter": 300,
+        "n_exog_features": 19,
+        "converged": true,
+        "train_aic": -1144.67,
+        "cv_best_mae": 17967.7026
+      },
+      "metrics": {
+        "val_mae": 19644.541948966995,
+        "val_rmse": 26113.824406445394,
+        "val_mape": 1.5958534871094616,
+        "val_smape": 1.5831519261900544,
+        "val_mase": 0.35890434850114566,
+        "val_mae_weekday": 19418.3694887077,
+        "val_mae_weekend": 18414.83591112448,
+        "val_mae_holiday": 35197.05124472272
+      },
+      "aliases_after_run": {
+        "champion": "5",
+        "challenger": "6"
+      },
+      "is_champion": false,
+      "is_challenger": true
+    },
+    {
+      "model_name": "spline_arx",
+      "model_family": "autoregressive",
+      "run_id": "65a262e322794ee88d765fe718fc4d8b",
+      "registered_model_name": "de-load-daily",
+      "registered_version": "4",
+      "quality_gate": "passed",
+      "gate_improvement_pct": 0.2920609183539821,
+      "runtime_sec": 4.91,
+      "params": {
+        "task": "daily",
+        "tune": true,
+        "selected_alpha": 1.0,
+        "selected_n_knots": 5,
+        "selected_include_trend": false,
+        "uses_prev_day_24h_profile": false,
+        "n_input_features": 32,
+        "stratified_by_hour": false,
+        "cv_best_mae": 24382.22
+      },
+      "metrics": {
+        "val_mae": 25700.628083580214,
+        "val_rmse": 32079.639732004674,
+        "val_mape": 2.0736827949383487,
+        "val_smape": 2.0485992252409595,
+        "val_mase": 0.46954860043925073,
+        "val_mae_weekday": 26554.667104722717,
+        "val_mae_weekend": 22603.19478617151,
+        "val_mae_holiday": 34450.33233539321
+      },
+      "aliases_after_run": {
+        "champion": "4",
+        "challenger": "3"
+      },
+      "is_champion": false,
+      "is_challenger": true
+    },
+    {
+      "model_name": "ridge_arx",
+      "model_family": "autoregressive",
+      "run_id": "144441afaefb4908af74d9e9237b743f",
+      "registered_model_name": "de-load-daily",
+      "registered_version": "3",
+      "quality_gate": "passed",
+      "gate_improvement_pct": 48.36640269407383,
+      "runtime_sec": 4.213,
+      "params": {
+        "task": "daily",
+        "tune": true,
+        "selected_alpha": 0.1,
+        "selected_include_trend": false,
+        "n_features": 37,
+        "stratified_by_hour": false,
+        "cv_best_mae": 23607.041
+      },
+      "metrics": {
+        "val_mae": 25775.909441408883,
+        "val_rmse": 32936.28360462118,
+        "val_mape": 2.086093270453777,
+        "val_smape": 2.057926950462743,
+        "val_mase": 0.47092398535562957,
+        "val_mae_weekday": 26730.146234334225,
+        "val_mae_weekend": 22066.117457667016,
+        "val_mae_holiday": 38247.7587230349
+      },
+      "aliases_after_run": {
+        "champion": "3",
+        "challenger": "2"
+      },
+      "is_champion": false,
+      "is_challenger": false
+    }
+  ]
+}

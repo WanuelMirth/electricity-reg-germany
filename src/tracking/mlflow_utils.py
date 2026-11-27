@@ -58,7 +58,12 @@ class MLflowConfig:
             )
 
         registry_uri = os.environ.get("MLFLOW_REGISTRY_URI", tracking_uri)
-        experiment_name = os.environ.get("MLFLOW_EXPERIMENT_NAME", "electricity-load-germany")
+        default_experiment = (
+            "/Shared/electricity-load-germany"
+            if tracking_uri.startswith("databricks")
+            else "electricity-load-germany"
+        )
+        experiment_name = os.environ.get("MLFLOW_EXPERIMENT_NAME", default_experiment)
         uc_prefix = os.environ.get("MLFLOW_UC_PREFIX", "")
         return cls(
             tracking_uri=tracking_uri,
@@ -173,8 +178,10 @@ def log_forecast_outputs(
     predictions_df: pd.DataFrame,
     metrics: dict[str, float],
     figures: dict[str, plt.Figure],
+    *,
+    predictions_filename: str = "val_predictions.csv",
 ) -> None:
-    """Log validation metrics, diagnostic plots, and predictions CSV to the active run."""
+    """Log validation/test metrics, diagnostic plots, and predictions CSV to the active run."""
     if metrics:
         mlflow.log_metrics({k: float(v) for k, v in metrics.items()})
 
@@ -185,9 +192,36 @@ def log_forecast_outputs(
             plt.close(fig)
 
     with tempfile.TemporaryDirectory() as tmp_dir:
-        pred_path = Path(tmp_dir) / "val_predictions.csv"
+        pred_path = Path(tmp_dir) / predictions_filename
         predictions_df.to_csv(pred_path, index=False)
         mlflow.log_artifact(str(pred_path), artifact_path="predictions")
+
+
+def log_pyfunc_model(
+    *,
+    pyfunc_model: mlflow.pyfunc.PythonModel,
+    input_example: pd.DataFrame,
+    sample_output: np.ndarray,
+    pip_requirements: list[str],
+):
+    """Log a PyFunc model with inferred signature and bundled `src` code to the active run."""
+    signature = infer_signature(input_example, sample_output)
+    code_paths: list[str] | None = None
+    try:
+        src_dir = find_repo_root() / "src"
+        if src_dir.is_dir():
+            code_paths = [str(src_dir)]
+    except FileNotFoundError:
+        code_paths = None
+
+    return mlflow.pyfunc.log_model(
+        name="model",
+        python_model=pyfunc_model,
+        signature=signature,
+        input_example=input_example,
+        pip_requirements=pip_requirements,
+        code_paths=code_paths,
+    )
 
 
 def log_and_register_pyfunc_model(
@@ -201,22 +235,11 @@ def log_and_register_pyfunc_model(
     version_tags: dict[str, str],
 ) -> ModelVersion:
     """Log a PyFunc model with inferred signature, register it, and tag the version."""
-    signature = infer_signature(input_example, sample_output)
-    code_paths: list[str] | None = None
-    try:
-        src_dir = find_repo_root() / "src"
-        if src_dir.is_dir():
-            code_paths = [str(src_dir)]
-    except FileNotFoundError:
-        code_paths = None
-
-    model_info = mlflow.pyfunc.log_model(
-        name="model",
-        python_model=pyfunc_model,
-        signature=signature,
+    model_info = log_pyfunc_model(
+        pyfunc_model=pyfunc_model,
         input_example=input_example,
+        sample_output=sample_output,
         pip_requirements=pip_requirements,
-        code_paths=code_paths,
     )
     mv = mlflow.register_model(model_uri=model_info.model_uri, name=registered_model_name)
     for key, value in version_tags.items():
