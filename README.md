@@ -28,8 +28,13 @@ uv run python scripts/run_baselines.py
 # Tune and evaluate tree models on both tasks (10 trials per configuration/task)
 uv run python scripts/run_trees.py
 
+# Run 2023 autoregressive models (Ridge-ARX, Spline-ARX, daily SARIMAX) with train-only CV
+uv run python scripts/run_autoregressive.py
+
 # Optional strict approval mode (assigns @challenger only; promote manually)
 uv run python scripts/run_baselines.py --no-auto-promote
+uv run python scripts/run_trees.py --no-auto-promote
+uv run python scripts/run_autoregressive.py --no-auto-promote
 uv run python scripts/promote_model.py --task all
 
 # Build Markdown leaderboard from stored JSON summaries (or --split test_2024 later)
@@ -54,7 +59,7 @@ src/
   features.py             Calendar/holiday features and DST-safe day-ahead lag builders
   outliers.py             Retrospective EDA comparison helpers
   evaluation/             Train/val/test splits, rolling-origin iterator, metrics, plots
-  models/                 BaseForecaster, backtest runner, baselines, trees (upcoming: icl.py)
+  models/                 BaseForecaster, backtest runner, baselines, trees, autoregressive, (upcoming: icl.py)
   tracking/               Portable MLflow logging, quality gate, aliases, leaderboard renderer
 scripts/                  CLI runners: run_baselines.py, run_trees.py, build_leaderboard.py,
                           promote_model.py (upcoming: run_icl.py)
@@ -70,6 +75,7 @@ mlruns/                   Local gitignored MLflow SQLite DB + logged plots/artif
 `data/processed/*.csv` stores only raw load and known-future covariates (no target lags):
 - **Baselines (`src/models/baselines.py`):** `naive_day_before` (`lag_24h` / `lag_1d`) and `seasonal_naive_week_before` (`lag_168h` / `lag_7d`).
 - **Tree models (`src/models/trees.py`):** Random Forest, XGBoost, LightGBM, LightGBM linear trees, and CatBoost, using the shared tree feature builder and Optuna tuning within the training years.
+- **Autoregressive (`src/models/autoregressive.py`):** `ridge_arx` (24h-stratified / daily Ridge-ARX), `spline_arx` (GAM/LEAR-style B-spline ARX with full yesterday 24h profile on hourly), and `sarimax` (daily `SARIMAX(p,d,q)(P,D,Q,7)`), tuned strictly on `train_df` via inner-year CV.
 - **ICL models (upcoming `src/models/icl.py`):** `TimeH2O-v1` / `Timestral-209M`, using raw past load + `HOURLY_ICL_COVARIATE_COLS` / `DAILY_ICL_COVARIATE_COLS` without manual target lags.
 
 **Working across branches:**
