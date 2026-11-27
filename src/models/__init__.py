@@ -15,12 +15,26 @@ from src.models.baselines import (
     LagBaselinePyFunc,
     SeasonalNaiveBaseline,
 )
+from src.models.icl import (
+    CONTEXT_PRESETS,
+    DEFAULT_CONTEXT_PRESETS,
+    ICL_MODEL_SPECS,
+    ICL_MODELS,
+    ICLForecaster,
+    ICLPyFunc,
+)
 from src.models.trees import TreeForecaster
 
 __all__ = [
     "BacktestResult",
     "BaseForecaster",
+    "CONTEXT_PRESETS",
+    "DEFAULT_CONTEXT_PRESETS",
     "DayBeforeBaseline",
+    "ICLForecaster",
+    "ICLPyFunc",
+    "ICL_MODELS",
+    "ICL_MODEL_SPECS",
     "LagBaselineForecaster",
     "LagBaselinePyFunc",
     "RidgeARXForecaster",
@@ -28,8 +42,8 @@ __all__ = [
     "SARIMAXForecaster",
     "SARIMAXPyFunc",
     "SeasonalNaiveBaseline",
-    "TreeForecaster",
     "SplineARXForecaster",
     "SplineARXPyFunc",
+    "TreeForecaster",
     "run_rolling_backtest",
 ]

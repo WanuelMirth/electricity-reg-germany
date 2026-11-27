@@ -1,0 +1,209 @@
+{
+  "task": "daily",
+  "split": "val_2023",
+  "primary_metric": "val_mae",
+  "generated_at_utc": "2026-11-27T16:06:28.008622+00:00",
+  "git_commit": "a2343b9",
+  "git_dirty": "true",
+  "models": [
+    {
+      "model_name": "timestral_209m",
+      "model_family": "icl",
+      "run_id": "cddc7b28cf2f41d69499eb1393a8a2c8",
+      "registered_model_name": "de-load-daily",
+      "registered_version": "4",
+      "quality_gate": "passed",
+      "gate_improvement_pct": 0.8792840662248568,
+      "runtime_sec": 82.17,
+      "total_sweep_runtime_sec": 179.402,
+      "params": {
+        "task": "daily",
+        "model_name": "timestral_209m",
+        "model_id": "mistralai/Timestral-209M",
+        "license": "Modified MIT (weights) / Apache 2.0 (code)",
+        "context_preset": "max",
+        "max_history_steps": 32768,
+        "model_max_context": 32768,
+        "weather_mode": "observed_historical",
+        "point_estimate": "median",
+        "covariate_cols": [
+          "time_years",
+          "day_of_week",
+          "month",
+          "day_of_year",
+          "is_weekend",
+          "holiday_weight",
+          "is_bridge_day",
+          "is_christmas_shutdown",
+          "temp_c_mean",
+          "solar_radiation_wm2_mean",
+          "wind_speed_kmh_mean"
+        ],
+        "n_covariates": 11,
+        "device": "auto",
+        "train_rows": 1461,
+        "effective_context_min": 1461,
+        "effective_context_max": 1825,
+        "selected_context_preset": "max",
+        "tested_context_presets": "3m,1y,max",
+        "context_sweep": [
+          {
+            "context_preset": "3m",
+            "max_history_steps": 91,
+            "effective_context_min": 91,
+            "effective_context_max": 91,
+            "val_mae": 24989.25376712329,
+            "val_rmse": 36439.37767804738,
+            "val_mase": 0.4565518435664418,
+            "runtime_sec": 47.982,
+            "peak_gpu_memory_mb": 1243.04,
+            "child_run_id": "dcfa27f28598457da30d5c42aa5ea2ed"
+          },
+          {
+            "context_preset": "1y",
+            "max_history_steps": 365,
+            "effective_context_min": 365,
+            "effective_context_max": 365,
+            "val_mae": 19996.437842465755,
+            "val_rmse": 27725.172244707992,
+            "val_mase": 0.3653334608074798,
+            "runtime_sec": 49.25,
+            "peak_gpu_memory_mb": 1252.73,
+            "child_run_id": "4f372e767b2848278c450642bb5b4180"
+          },
+          {
+            "context_preset": "max",
+            "max_history_steps": 32768,
+            "effective_context_min": 1461,
+            "effective_context_max": 1825,
+            "val_mae": 18491.43698630137,
+            "val_rmse": 24919.366286683566,
+            "val_mase": 0.3378372049426924,
+            "runtime_sec": 82.17,
+            "peak_gpu_memory_mb": 1304.37,
+            "child_run_id": "f0d2b873bdc9445fbc993fae65f305f3"
+          }
+        ]
+      },
+      "metrics": {
+        "val_mae": 18491.43698630137,
+        "val_rmse": 24919.366286683566,
+        "val_mape": 1.5124440271565982,
+        "val_smape": 1.5108573939686527,
+        "val_mase": 0.3378372049426924,
+        "val_mae_weekday": 16779.4245,
+        "val_mae_weekend": 21430.474404761906,
+        "val_mae_holiday": 28757.573863636364,
+        "val_r2": 0.9713387594392832,
+        "runtime_sec": 82.17,
+        "peak_gpu_memory_mb": 1304.37
+      },
+      "aliases_after_run": {
+        "champion": "4",
+        "challenger": "3"
+      },
+      "is_champion": true,
+      "is_challenger": false
+    },
+    {
+      "model_name": "timeh2o_v1",
+      "model_family": "icl",
+      "run_id": "e6b00e6219d549b6a1c332ff7c578b20",
+      "registered_model_name": "de-load-daily",
+      "registered_version": "3",
+      "quality_gate": "passed",
+      "gate_improvement_pct": 62.62986921710977,
+      "runtime_sec": 483.653,
+      "total_sweep_runtime_sec": 838.115,
+      "params": {
+        "task": "daily",
+        "model_name": "timeh2o_v1",
+        "model_id": "h2oai/timeh2o-v1",
+        "license": "H2O Model Non-Commercial License v1.0",
+        "context_preset": "max",
+        "max_history_steps": 16384,
+        "model_max_context": 16384,
+        "weather_mode": "observed_historical",
+        "point_estimate": "median",
+        "covariate_cols": [
+          "time_years",
+          "day_of_week",
+          "month",
+          "day_of_year",
+          "is_weekend",
+          "holiday_weight",
+          "is_bridge_day",
+          "is_christmas_shutdown",
+          "temp_c_mean",
+          "solar_radiation_wm2_mean",
+          "wind_speed_kmh_mean"
+        ],
+        "n_covariates": 11,
+        "device": "auto",
+        "patch_ensemble": true,
+        "train_rows": 1461,
+        "effective_context_min": 1461,
+        "effective_context_max": 1825,
+        "selected_context_preset": "max",
+        "tested_context_presets": "3m,1y,max",
+        "context_sweep": [
+          {
+            "context_preset": "3m",
+            "max_history_steps": 91,
+            "effective_context_min": 91,
+            "effective_context_max": 91,
+            "val_mae": 24897.375856164384,
+            "val_rmse": 41628.594197230625,
+            "val_mase": 0.45487324083495456,
+            "runtime_sec": 161.546,
+            "peak_gpu_memory_mb": 1279.09,
+            "child_run_id": "7c724460d42c4befbeebb5ec992cd47f"
+          },
+          {
+            "context_preset": "1y",
+            "max_history_steps": 365,
+            "effective_context_min": 365,
+            "effective_context_max": 365,
+            "val_mae": 21383.515924657535,
+            "val_rmse": 32217.704060010652,
+            "val_mase": 0.3906752761932764,
+            "runtime_sec": 192.916,
+            "peak_gpu_memory_mb": 1383.16,
+            "child_run_id": "d217e4e6068e48ba9bcf91bf13b2853e"
+          },
+          {
+            "context_preset": "max",
+            "max_history_steps": 16384,
+            "effective_context_min": 1461,
+            "effective_context_max": 1825,
+            "val_mae": 18655.471575342464,
+            "val_rmse": 27501.9571990131,
+            "val_mase": 0.34083410491950983,
+            "runtime_sec": 483.653,
+            "peak_gpu_memory_mb": 1960.63,
+            "child_run_id": "b1fbac8a5f444250b829a26cb2904807"
+          }
+        ]
+      },
+      "metrics": {
+        "val_mae": 18655.471575342464,
+        "val_rmse": 27501.9571990131,
+        "val_mape": 1.5426508790327809,
+        "val_smape": 1.5325785600798953,
+        "val_mase": 0.34083410491950983,
+        "val_mae_weekday": 15060.7895,
+        "val_mae_weekend": 19650.685714285715,
+        "val_mae_holiday": 90191.22727272728,
+        "val_r2": 0.9650901325028236,
+        "runtime_sec": 483.653,
+        "peak_gpu_memory_mb": 1960.63
+      },
+      "aliases_after_run": {
+        "champion": "3",
+        "challenger": "2"
+      },
+      "is_champion": false,
+      "is_challenger": true
+    }
+  ]
+}
